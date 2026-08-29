@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Unused track -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,30 A24,24 0 1,1 53.99,30"
+        android:strokeWidth="8"
+        android:strokeColor="#2A2A2A" />
+    <!-- Used arc (~40%) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,30 A24,24 0 0,1 77.3,66.8"
+        android:strokeWidth="8"
+        android:strokeColor="#1A5EFF"
+        android:strokeLineCap="butt" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,50 h6 v12 h-6 z M51,46 h6 v3 h-6 z" />
+</vector>
