@@ -61,8 +61,8 @@ private fun WidgetContent(
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .cornerRadius(16.dp)
-            .background(ColorProvider(Color(0xFF0A0A0A)))
+            .cornerRadius(18.dp)
+            .background(ColorProvider(Color(0xFF101014)))
             .clickable(openApp)
     ) {
         Image(
