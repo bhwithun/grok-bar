@@ -20,19 +20,26 @@ object Formatters {
         return "Resets $text"
     }
 
-    fun timeLeftLabel(epochMs: Long?): String {
-        if (epochMs == null || epochMs <= 0L) return "reset time unknown"
+    /** One line, for the square widget and for accessibility. */
+    fun timeLeftLabel(epochMs: Long?): String = timeLeftLines(epochMs).joinToString(" ")
+
+    /**
+     * Stacked caption. Amounts are separate lines (days, then hours, then minutes
+     * when there are no days) and the last line is "to go".
+     */
+    fun timeLeftLines(epochMs: Long?): List<String> {
+        if (epochMs == null || epochMs <= 0L) return listOf("reset time", "unknown")
         val minutes = ((epochMs - System.currentTimeMillis()) / 60000L).toInt()
-        if (minutes <= 0) return "resetting soon"
+        if (minutes <= 0) return listOf("resetting", "soon")
         val days = minutes / 1440
         val hours = (minutes % 1440) / 60
         val mins = minutes % 60
-        return when {
-            days > 0 && hours > 0 -> "${days}d ${hours}h left"
-            days > 0 -> "${days}d left"
-            hours > 0 -> "${hours}h ${mins}m left"
-            else -> "${mins}m left"
+        val amounts = buildList {
+            if (days > 0) add("${days}d")
+            if (hours > 0) add("${hours}h")
+            if (days == 0 && (hours == 0 || mins > 0)) add("${mins}m")
         }
+        return amounts + "to go"
     }
 
     fun relativeReset(epochMs: Long?): String? {

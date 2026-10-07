@@ -56,7 +56,15 @@ private fun WidgetContent(
     val widthPx = (size.width.value * density * 2f).toInt().coerceIn(160, 1600)
     val heightPx = (size.height.value * density * 2f).toInt().coerceIn(160, 1600)
     val pxPerDp = widthPx / size.width.value
-    val bitmap = GaugeBitmapRenderer.render(snapshot, widthPx, heightPx, pxPerDp)
+    val screenPx = size.width.value * density
+    val bitmapPxPerScreenPx = if (screenPx > 0f) widthPx / screenPx else 1f
+    val bitmap = GaugeBitmapRenderer.render(
+        snapshot,
+        widthPx,
+        heightPx,
+        pxPerDp,
+        bitmapPxPerScreenPx
+    )
 
     Box(
         modifier = GlanceModifier

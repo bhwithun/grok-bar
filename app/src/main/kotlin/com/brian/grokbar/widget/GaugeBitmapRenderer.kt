@@ -29,31 +29,82 @@ object GaugeBitmapRenderer {
         0xFFE8E050.toInt()
     )
 
-    fun render(snapshot: UsageSnapshot, width: Int, height: Int, pxPerDp: Float = 3f): Bitmap {
+    fun render(
+        snapshot: UsageSnapshot,
+        width: Int,
+        height: Int,
+        pxPerDp: Float = 3f,
+        bitmapPxPerScreenPx: Float = 1f
+    ): Bitmap {
         val w = width.coerceAtLeast(64)
         val h = height.coerceAtLeast(64)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(background)
 
-        val caption = Formatters.timeLeftLabel(snapshot.resetAtEpochMs)
+        val captionLines = Formatters.timeLeftLines(snapshot.resetAtEpochMs)
         val captionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = label
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            textSize = fitTextSize(caption, min(w, h) * 0.064f * 1.75f, w * 0.92f, 12f)
         }
-        val captionFm = captionPaint.fontMetrics
-        val captionHeight = captionFm.descent - captionFm.ascent
-        val bottomPad = h * 0.045f
-        val captionGap = h * 0.018f
-        val topPad = h * 0.04f
-        val ringAreaTop = topPad
-        val ringAreaBottom = h - bottomPad - captionHeight - captionGap
-        val ringSide = min(w.toFloat() * 0.98f, (ringAreaBottom - ringAreaTop).coerceAtLeast(32f))
-        val cx = w / 2f
-        val cy = ringAreaTop + (ringAreaBottom - ringAreaTop) / 2f
+        val preferredCaption = min(w, h) * 0.064f * 1.75f
+        val landscape = w > h
+        val cx: Float
+        val cy: Float
+        val ringSide: Float
+        if (landscape) {
+            val pad = h * 0.04f
+            val textSize = fitBlockTextSize(
+                captionLines,
+                preferredCaption,
+                maxWidth = w * 0.42f,
+                maxHeight = h - pad * 2f,
+                min = 12f
+            )
+            captionPaint.textSize = textSize
+            val column = captionLines.maxOf { captionPaint.measureText(it) }
+            val gap = h * 0.03f
+            ringSide = min(h - pad * 2f, w - pad * 2f - gap - column).coerceAtLeast(32f)
+            val groupLeft = (w - (ringSide + gap + column)) / 2f
+            cx = groupLeft + ringSide / 2f
+            cy = h / 2f
+            drawRings(canvas, snapshot, cx, cy, ringSide, pxPerDp, bitmapPxPerScreenPx)
+            drawCaptionBlock(
+                canvas,
+                captionLines,
+                groupLeft + ringSide + gap + column / 2f,
+                cy,
+                captionPaint
+            )
+        } else {
+            val caption = captionLines.joinToString(" ")
+            captionPaint.textSize = fitTextSize(caption, preferredCaption, w * 0.92f, 12f)
+            val captionFm = captionPaint.fontMetrics
+            val captionHeight = captionFm.descent - captionFm.ascent
+            val bottomPad = h * 0.045f
+            val captionGap = h * 0.018f
+            val topPad = h * 0.04f
+            val ringAreaTop = topPad
+            val ringAreaBottom = h - bottomPad - captionHeight - captionGap
+            ringSide = min(w.toFloat() * 0.98f, (ringAreaBottom - ringAreaTop).coerceAtLeast(32f))
+            cx = w / 2f
+            cy = ringAreaTop + (ringAreaBottom - ringAreaTop) / 2f
+            drawRings(canvas, snapshot, cx, cy, ringSide, pxPerDp, bitmapPxPerScreenPx)
+            canvas.drawText(caption, cx, h - bottomPad - captionFm.descent, captionPaint)
+        }
+        return bmp
+    }
 
+    private fun drawRings(
+        canvas: Canvas,
+        snapshot: UsageSnapshot,
+        cx: Float,
+        cy: Float,
+        ringSide: Float,
+        pxPerDp: Float,
+        bitmapPxPerScreenPx: Float
+    ) {
         val tickLen = ringSide * 0.040f
         val margin = tickLen + ringSide * 0.028f
         val outerStroke = ringSide * 0.112f
@@ -63,14 +114,29 @@ object GaugeBitmapRenderer {
         val innerRadius = outerRadius - outerStroke / 2f - ringGap - innerStroke / 2f
 
         drawTrack(canvas, cx, cy, outerRadius, outerStroke)
-        drawUsageRing(canvas, snapshot, cx, cy, outerRadius, outerStroke)
+        drawUsageRing(canvas, snapshot, cx, cy, outerRadius, outerStroke, bitmapPxPerScreenPx)
         drawTrack(canvas, cx, cy, innerRadius, innerStroke)
         drawResetRing(canvas, snapshot, cx, cy, innerRadius, innerStroke)
         drawDayTicks(canvas, cx, cy, outerRadius + outerStroke / 2f, tickLen, pxPerDp)
         drawGrokMark(canvas, cx, cy, (innerRadius - innerStroke / 2f) * 1.55f)
-        val baseline = h - bottomPad - captionFm.descent
-        canvas.drawText(caption, cx, baseline, captionPaint)
-        return bmp
+    }
+
+    private fun drawCaptionBlock(
+        canvas: Canvas,
+        lines: List<String>,
+        centerX: Float,
+        centerY: Float,
+        paint: Paint
+    ) {
+        val fm = paint.fontMetrics
+        val lineHeight = fm.descent - fm.ascent
+        val gap = lineHeight * 0.18f
+        val block = lines.size * lineHeight + (lines.size - 1) * gap
+        var baseline = centerY - block / 2f - fm.ascent
+        for (line in lines) {
+            canvas.drawText(line, centerX, baseline, paint)
+            baseline += lineHeight + gap
+        }
     }
 
     private fun orderedProducts(snapshot: UsageSnapshot): List<ProductShare> {
@@ -120,25 +186,61 @@ object GaugeBitmapRenderer {
         cx: Float,
         cy: Float,
         radius: Float,
-        stroke: Float
+        stroke: Float,
+        bitmapPxPerScreenPx: Float
     ) {
         val oval = ringOval(cx, cy, radius)
         val segments = usedSegments(snapshot)
-        val gap = if (segments.size > 1) 3.2f else 0f
         var start = -90f
         var endOfColor = start
-        segments.forEach { share ->
+        val boundaries = ArrayList<Float>(segments.size)
+        segments.forEachIndexed { index, share ->
             val sweep = 360f * (share.percent / 100f)
-            val drawn = sweep - gap
-            if (drawn > 0.6f) {
-                canvas.drawArc(oval, start, drawn, false, ringPaint(colorForProduct(share.id), stroke))
-                endOfColor = start + drawn
+            if (sweep > 0.15f) {
+                canvas.drawArc(oval, start, sweep, false, ringPaint(colorForProduct(share.id), stroke))
+                endOfColor = start + sweep
             }
-            start += sweep
+            val boundary = start + sweep
+            if (index < segments.lastIndex) boundaries += boundary
+            start = boundary
+        }
+        boundaries.forEach { angle ->
+            drawSegmentSeparator(canvas, cx, cy, radius, stroke, angle, bitmapPxPerScreenPx)
         }
         if (endOfColor > -90f + 1f) {
             drawTip(canvas, cx, cy, radius, endOfColor, stroke)
         }
+    }
+
+    /** Track-colored radial cut, two screen pixels wide. */
+    private fun drawSegmentSeparator(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        radius: Float,
+        stroke: Float,
+        angleDeg: Float,
+        bitmapPxPerScreenPx: Float
+    ) {
+        val paint = Paint().apply {
+            color = track
+            style = Paint.Style.STROKE
+            strokeWidth = (bitmapPxPerScreenPx * 2f).coerceAtLeast(2f)
+            strokeCap = Paint.Cap.BUTT
+            isAntiAlias = false
+        }
+        val rad = Math.toRadians(angleDeg.toDouble())
+        val cos = Math.cos(rad).toFloat()
+        val sin = Math.sin(rad).toFloat()
+        val inner = radius - stroke / 2f
+        val outer = radius + stroke / 2f
+        canvas.drawLine(
+            cx + cos * inner,
+            cy + sin * inner,
+            cx + cos * outer,
+            cy + sin * outer,
+            paint
+        )
     }
 
     private fun drawResetRing(
@@ -150,8 +252,7 @@ object GaugeBitmapRenderer {
         stroke: Float
     ) {
         val elapsed = WeekProgress.elapsedPercent(snapshot.resetAtEpochMs)
-        val remaining = (100f - elapsed).coerceIn(0f, 100f)
-        val sweep = 360f * (remaining / 100f)
+        val sweep = 360f * (elapsed / 100f)
         if (sweep <= 0.8f) return
         val oval = ringOval(cx, cy, radius)
         canvas.drawArc(oval, -90f, sweep.coerceAtMost(359.8f), false, ringPaint(weekFill, stroke))
@@ -226,13 +327,39 @@ object GaugeBitmapRenderer {
     }
 
     private fun fitTextSize(text: String, preferred: Float, maxWidth: Float, min: Float): Float {
-        val paint = Paint().apply { textSize = preferred }
+        val paint = Paint().apply {
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            textSize = preferred
+        }
         var size = preferred
         while (paint.measureText(text) > maxWidth && size > min) {
             size -= 1f
             paint.textSize = size
         }
         return size
+    }
+
+    private fun fitBlockTextSize(
+        lines: List<String>,
+        preferred: Float,
+        maxWidth: Float,
+        maxHeight: Float,
+        min: Float
+    ): Float {
+        val paint = Paint().apply {
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        }
+        var size = preferred
+        while (size > min) {
+            paint.textSize = size
+            val widest = lines.maxOf { paint.measureText(it) }
+            val fm = paint.fontMetrics
+            val lineHeight = fm.descent - fm.ascent
+            val block = lines.size * lineHeight + (lines.size - 1) * lineHeight * 0.18f
+            if (widest <= maxWidth && block <= maxHeight) return size
+            size -= 1f
+        }
+        return min
     }
 
     private fun ringPaint(color: Int, stroke: Float): Paint {
