@@ -3,102 +3,24 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#101014"
-    android:gravity="center"
+    android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="8dp">
 
-    <FrameLayout
+    <ImageView
         android:layout_width="match_parent"
-        android:layout_height="36dp">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:contentDescription="@string/widget_name"
+        android:scaleType="fitCenter"
+        android:src="@drawable/widget_rings_preview" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="3"
-                android:background="#3D7BFF" />
-
-            <View
-                android:layout_width="2dp"
-                android:layout_height="match_parent"
-                android:background="#101014" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1.5"
-                android:background="#00E5FF" />
-
-            <View
-                android:layout_width="2dp"
-                android:layout_height="match_parent"
-                android:background="#101014" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="#D06BFF" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="4.5"
-                android:background="#1A1A20" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:shadowColor="#E6000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="4"
-            android:text="Grok Token Use"
-            android:textColor="#F5F5F5"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </FrameLayout>
-
-    <FrameLayout
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="36dp"
-        android:layout_marginTop="8dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="6.5"
-                android:background="#FFC44D" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="3.5"
-                android:background="#1A1A20" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:shadowColor="#E6000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="4"
-            android:text="time to reset"
-            android:textColor="#F5F5F5"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </FrameLayout>
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="2d 15h left"
+        android:textColor="#F5F5F5"
+        android:textSize="23sp"
+        android:textStyle="bold" />
 </LinearLayout>

@@ -20,6 +20,21 @@ object Formatters {
         return "Resets $text"
     }
 
+    fun timeLeftLabel(epochMs: Long?): String {
+        if (epochMs == null || epochMs <= 0L) return "reset time unknown"
+        val minutes = ((epochMs - System.currentTimeMillis()) / 60000L).toInt()
+        if (minutes <= 0) return "resetting soon"
+        val days = minutes / 1440
+        val hours = (minutes % 1440) / 60
+        val mins = minutes % 60
+        return when {
+            days > 0 && hours > 0 -> "${days}d ${hours}h left"
+            days > 0 -> "${days}d left"
+            hours > 0 -> "${hours}h ${mins}m left"
+            else -> "${mins}m left"
+        }
+    }
+
     fun relativeReset(epochMs: Long?): String? {
         if (epochMs == null || epochMs <= 0L) return null
         val minutes = ((epochMs - System.currentTimeMillis()) / 60000L).toInt()

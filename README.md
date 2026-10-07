@@ -6,7 +6,7 @@ It shows:
 
 - Percent of the weekly pool used
 - Reset date and time
-- A segmented progress bar for **Grok Build**, **Chat**, **Voice**, **Imagine**, and **Automations**
+- A home-screen ring: outer ring is token use by product (**Grok Build**, **Chat**, **Voice**, **Imagine**, **Automations**), inner ring is time left until reset
 
 The in-app screen uses the same gauge so you can confirm data before pinning the widget.
 
@@ -29,7 +29,7 @@ Until you sign in, the widget shows sample data so you can preview the layout.
 
 ## How it works
 
-Paid Grok plans share one weekly usage pool. This app reads the same billing config the website uses (`GetGrokCreditsConfig` / CLI credits JSON), then draws the official Usage bar:
+Paid Grok plans share one weekly usage pool. This app reads the same billing config the website uses (`GetGrokCreditsConfig` / CLI credits JSON). The home-screen widget draws that as two rings in a 2×2 cell: the outer ring is token use colored by product, and the inner ring is time left until reset. The in-app screen still draws the official Usage bar:
 
 - Electric blue `#1A5EFF` with stepped opacity per product
 - 1px gaps between segments

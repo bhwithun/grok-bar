@@ -36,7 +36,7 @@ Never hardcode preference keys; use `AppStorage.Keys`.
 
 ## Widget
 
-Glance `UsageWidget` draws the official-style gauge (electric-blue opacity steps, 1px gaps, unused track) as a bitmap. Refresh through `WidgetUpdater` after fetches and from `RefreshUsageWorker`.
+Glance `UsageWidget` draws a square bitmap: an outer ring of token use (one color per product) and an inner ring of time remaining until reset. Default size is 2×2 cells. Refresh through `WidgetUpdater` after fetches and from `RefreshUsageWorker`.
 
 ## Theme
 

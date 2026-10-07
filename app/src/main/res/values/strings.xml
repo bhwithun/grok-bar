@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Grok Bar</string>
     <string name="widget_name">Grok usage</string>
-    <string name="widget_description">Weekly Grok usage and week-elapsed bars</string>
+    <string name="widget_description">Weekly token use and time-to-reset rings</string>
 </resources>

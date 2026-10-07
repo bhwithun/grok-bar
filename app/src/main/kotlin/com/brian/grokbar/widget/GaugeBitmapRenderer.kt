@@ -2,28 +2,26 @@ package com.brian.grokbar.widget
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import com.brian.grokbar.data.ProductShare
 import com.brian.grokbar.data.UsageProduct
 import com.brian.grokbar.data.UsageSnapshot
+import com.brian.grokbar.util.Formatters
 import com.brian.grokbar.util.WeekProgress
+import kotlin.math.min
 
 object GaugeBitmapRenderer {
     private val background = 0xFF101014.toInt()
-    private val well = 0xFF1A1A20.toInt()
-    private val wellInset = 0xFF0C0C10.toInt()
-    private val outline = 0xFF3A3A48.toInt()
+    private val track = 0xFF1A1A20.toInt()
+    private val trackEdge = 0xFF2C2C36.toInt()
     private val weekFill = 0xFFFFC44D.toInt()
-    private val playhead = 0xFFFFF6D8.toInt()
     private val label = 0xFFFFFFF5.toInt()
-    private val chip = 0xB2000000.toInt()
-    private const val usageLabel = "Grok Token Use"
-    private const val weekLabel = "time to reset"
+    private val tipFill = 0xFFFFFFFF.toInt()
+    private val tipEdge = 0xFF000000.toInt()
+    private val tick = 0xFFF2F2F6.toInt()
     private val extraColors = intArrayOf(
         0xFFFFB020.toInt(),
         0xFFFF7A3D.toInt(),
@@ -32,31 +30,46 @@ object GaugeBitmapRenderer {
     )
 
     fun render(snapshot: UsageSnapshot, width: Int, height: Int, pxPerDp: Float = 3f): Bitmap {
-        val w = width.coerceAtLeast(200)
-        val h = height.coerceAtLeast(80)
+        val w = width.coerceAtLeast(64)
+        val h = height.coerceAtLeast(64)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(background)
 
-        val padH = (w * 0.045f).coerceIn(10f, 24f)
-        val padV = (h * 0.12f).coerceIn(8f, 16f)
-        val innerW = w - padH * 2f
-        val innerH = (h - padV * 2f).coerceAtLeast(16f)
-        val gap = (innerH * 0.14f).coerceIn(8f, 16f)
-        val barHeight = ((innerH - gap) / 2f).coerceAtLeast(8f)
-        val barsTop = padV + (innerH - (barHeight * 2f + gap)) / 2f
+        val caption = Formatters.timeLeftLabel(snapshot.resetAtEpochMs)
+        val captionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = label
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            textSize = fitTextSize(caption, min(w, h) * 0.064f * 1.75f, w * 0.92f, 12f)
+        }
+        val captionFm = captionPaint.fontMetrics
+        val captionHeight = captionFm.descent - captionFm.ascent
+        val bottomPad = h * 0.045f
+        val captionGap = h * 0.018f
+        val topPad = h * 0.04f
+        val ringAreaTop = topPad
+        val ringAreaBottom = h - bottomPad - captionHeight - captionGap
+        val ringSide = min(w.toFloat() * 0.98f, (ringAreaBottom - ringAreaTop).coerceAtLeast(32f))
+        val cx = w / 2f
+        val cy = ringAreaTop + (ringAreaBottom - ringAreaTop) / 2f
 
-        val usageRect = RectF(padH, barsTop, padH + innerW, barsTop + barHeight)
-        val weekRect = RectF(
-            padH,
-            usageRect.bottom + gap,
-            padH + innerW,
-            usageRect.bottom + gap + barHeight
-        )
-        drawSegmentedBar(canvas, snapshot, usageRect, pxPerDp)
-        drawWeekBar(canvas, snapshot, weekRect, pxPerDp)
-        drawCenteredLabel(canvas, usageRect, usageLabel, pxPerDp)
-        drawCenteredLabel(canvas, weekRect, weekLabel, pxPerDp)
+        val tickLen = ringSide * 0.040f
+        val margin = tickLen + ringSide * 0.028f
+        val outerStroke = ringSide * 0.112f
+        val innerStroke = ringSide * 0.074f
+        val ringGap = ringSide * 0.028f
+        val outerRadius = ringSide / 2f - margin - outerStroke / 2f
+        val innerRadius = outerRadius - outerStroke / 2f - ringGap - innerStroke / 2f
+
+        drawTrack(canvas, cx, cy, outerRadius, outerStroke)
+        drawUsageRing(canvas, snapshot, cx, cy, outerRadius, outerStroke)
+        drawTrack(canvas, cx, cy, innerRadius, innerStroke)
+        drawResetRing(canvas, snapshot, cx, cy, innerRadius, innerStroke)
+        drawDayTicks(canvas, cx, cy, outerRadius + outerStroke / 2f, tickLen, pxPerDp)
+        drawGrokMark(canvas, cx, cy, (innerRadius - innerStroke / 2f) * 1.55f)
+        val baseline = h - bottomPad - captionFm.descent
+        canvas.drawText(caption, cx, baseline, captionPaint)
         return bmp
     }
 
@@ -65,7 +78,7 @@ object GaugeBitmapRenderer {
         val known = UsageProduct.gaugeOrder.map { product ->
             byId[product.id] ?: ProductShare(product.id, product.label, 0f)
         }
-        val extras = snapshot.products.filter { p -> UsageProduct.fromId(p.id) == null }
+        val extras = snapshot.products.filter { UsageProduct.fromId(it.id) == null }
         return known + extras
     }
 
@@ -95,166 +108,143 @@ object GaugeBitmapRenderer {
         }
     }
 
-    private fun drawWell(canvas: Canvas, rect: RectF, stroke: Float) {
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = well }
-        canvas.drawRect(rect, fill)
-        val inset = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = wellInset }
-        canvas.drawRect(RectF(rect.left, rect.top, rect.right, rect.top + stroke), inset)
-        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = outline
-            style = Paint.Style.STROKE
-            strokeWidth = stroke
-        }
-        canvas.drawRect(
-            RectF(
-                rect.left + stroke / 2f,
-                rect.top + stroke / 2f,
-                rect.right - stroke / 2f,
-                rect.bottom - stroke / 2f
-            ),
-            edge
-        )
+    private fun drawTrack(canvas: Canvas, cx: Float, cy: Float, radius: Float, stroke: Float) {
+        val edge = ringPaint(trackEdge, stroke + stroke * 0.12f)
+        canvas.drawCircle(cx, cy, radius, edge)
+        canvas.drawCircle(cx, cy, radius, ringPaint(track, stroke))
     }
 
-    private fun drawCandy(canvas: Canvas, rect: RectF, color: Int) {
-        if (rect.width() <= 0.5f || rect.height() <= 0.5f) return
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                rect.left,
-                rect.top,
-                rect.left,
-                rect.bottom,
-                intArrayOf(mix(color, Color.WHITE, 0.32f), color, mix(color, Color.BLACK, 0.22f)),
-                floatArrayOf(0f, 0.42f, 1f),
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(rect, paint)
-        val shine = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0x33FFFFFF }
-        val shineH = (rect.height() * 0.18f).coerceAtLeast(1f)
-        canvas.drawRect(RectF(rect.left, rect.top, rect.right, rect.top + shineH), shine)
-    }
-
-    private fun drawPlayhead(canvas: Canvas, bar: RectF, fillRight: Float, pxPerDp: Float) {
-        val x = fillRight.coerceIn(bar.left, bar.right)
-        if (x <= bar.left + 1f) return
-        val w = (2.2f * pxPerDp).coerceIn(3f, 8f)
-        val left = (x - w).coerceAtLeast(bar.left)
-        drawCandy(canvas, RectF(left, bar.top, x.coerceAtMost(bar.right), bar.bottom), playhead)
-    }
-
-    private fun drawSegmentedBar(
+    private fun drawUsageRing(
         canvas: Canvas,
         snapshot: UsageSnapshot,
-        rect: RectF,
-        pxPerDp: Float
+        cx: Float,
+        cy: Float,
+        radius: Float,
+        stroke: Float
     ) {
-        val stroke = (1f * pxPerDp).coerceIn(1.5f, 3f)
-        drawWell(canvas, rect, stroke)
-        val inner = inset(rect, stroke)
+        val oval = ringOval(cx, cy, radius)
         val segments = usedSegments(snapshot)
-        val gap = (1.6f * pxPerDp).coerceIn(2f, 5f)
-        var x = inner.left
-        val total = inner.width()
-        var lastRight = inner.left
+        val gap = if (segments.size > 1) 3.2f else 0f
+        var start = -90f
+        var endOfColor = start
         segments.forEach { share ->
-            val width = total * (share.percent / 100f)
-            if (width <= 1f) {
-                x += width
-                return@forEach
+            val sweep = 360f * (share.percent / 100f)
+            val drawn = sweep - gap
+            if (drawn > 0.6f) {
+                canvas.drawArc(oval, start, drawn, false, ringPaint(colorForProduct(share.id), stroke))
+                endOfColor = start + drawn
             }
-            val right = (x + width - gap).coerceAtMost(inner.right)
-            drawCandy(canvas, RectF(x, inner.top, right, inner.bottom), colorForProduct(share.id))
-            lastRight = right
-            x += width
+            start += sweep
         }
-        if (lastRight > inner.left) {
-            drawPlayhead(canvas, inner, lastRight, pxPerDp)
+        if (endOfColor > -90f + 1f) {
+            drawTip(canvas, cx, cy, radius, endOfColor, stroke)
         }
     }
 
-    private fun drawWeekBar(
+    private fun drawResetRing(
         canvas: Canvas,
         snapshot: UsageSnapshot,
-        rect: RectF,
+        cx: Float,
+        cy: Float,
+        radius: Float,
+        stroke: Float
+    ) {
+        val elapsed = WeekProgress.elapsedPercent(snapshot.resetAtEpochMs)
+        val remaining = (100f - elapsed).coerceIn(0f, 100f)
+        val sweep = 360f * (remaining / 100f)
+        if (sweep <= 0.8f) return
+        val oval = ringOval(cx, cy, radius)
+        canvas.drawArc(oval, -90f, sweep.coerceAtMost(359.8f), false, ringPaint(weekFill, stroke))
+        if (sweep < 359.5f) {
+            drawTip(canvas, cx, cy, radius, -90f + sweep, stroke)
+        }
+    }
+
+    private fun drawDayTicks(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        outerEdge: Float,
+        tickLen: Float,
         pxPerDp: Float
     ) {
-        val stroke = (1f * pxPerDp).coerceIn(1.5f, 3f)
-        drawWell(canvas, rect, stroke)
-        val inner = inset(rect, stroke)
-        drawWeekTicks(canvas, inner, pxPerDp)
-        val percent = WeekProgress.elapsedPercent(snapshot.resetAtEpochMs)
-        val fillWidth = inner.width() * (percent / 100f)
-        if (fillWidth <= 1f) return
-        val fillRight = (inner.left + fillWidth).coerceAtMost(inner.right)
-        drawCandy(canvas, RectF(inner.left, inner.top, fillRight, inner.bottom), weekFill)
-        drawPlayhead(canvas, inner, fillRight, pxPerDp)
-    }
-
-    private fun drawWeekTicks(canvas: Canvas, rect: RectF, pxPerDp: Float) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x28FFFFFF
-            strokeWidth = (1f * pxPerDp).coerceIn(1f, 2.5f)
+            color = tick
+            strokeWidth = (1.15f * pxPerDp).coerceIn(2f, 4.5f)
+            strokeCap = Paint.Cap.ROUND
         }
-        val insetY = rect.height() * 0.18f
-        for (i in 1..6) {
-            val x = rect.left + rect.width() * (i / 7f)
-            canvas.drawLine(x, rect.top + insetY, x, rect.bottom - insetY, paint)
+        for (day in 0 until 7) {
+            val rad = Math.toRadians(-90.0 + 360.0 * day / 7.0)
+            val cos = Math.cos(rad).toFloat()
+            val sin = Math.sin(rad).toFloat()
+            val start = outerEdge - tickLen * 0.15f
+            val end = outerEdge + tickLen
+            canvas.drawLine(cx + cos * start, cy + sin * start, cx + cos * end, cy + sin * end, paint)
         }
     }
 
-    private fun drawCenteredLabel(canvas: Canvas, rect: RectF, text: String, pxPerDp: Float) {
-        val maxHeight = rect.height() * 0.48f
-        val maxWidth = rect.width() * 0.90f
-        if (maxHeight < 16f || maxWidth < 24f) return
+    private fun drawGrokMark(canvas: Canvas, cx: Float, cy: Float, diameter: Float) {
+        if (diameter < 16f) return
+        val ringRadius = diameter * 0.30f
+        val ringStroke = diameter * 0.135f
+        canvas.drawCircle(cx, cy, ringRadius, ringPaint(label, ringStroke))
 
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = label
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            textAlign = Paint.Align.CENTER
-            letterSpacing = 0.04f
+        canvas.save()
+        canvas.rotate(-48f, cx, cy)
+        val gap = ringPaint(background, ringStroke * 1.65f)
+        val reach = diameter * 0.62f
+        canvas.drawLine(cx - reach, cy, cx + reach, cy, gap)
+
+        val len = diameter * 0.50f
+        val thick = diameter * 0.078f
+        val blade = Path().apply {
+            moveTo(cx - len, cy)
+            quadTo(cx, cy - thick, cx + len, cy)
+            quadTo(cx, cy + thick, cx - len, cy)
+            close()
         }
-        var size = (13f * pxPerDp).coerceAtMost(maxHeight)
-        paint.textSize = size
-        while (paint.measureText(text) > maxWidth && size > 16f) {
+        canvas.drawPath(blade, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = label })
+        canvas.restore()
+    }
+
+    private fun drawTip(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        radius: Float,
+        angleDeg: Float,
+        stroke: Float
+    ) {
+        val rad = Math.toRadians(angleDeg.toDouble())
+        val x = cx + radius * kotlin.math.cos(rad).toFloat()
+        val y = cy + radius * kotlin.math.sin(rad).toFloat()
+        val dotRadius = stroke * 0.66f / 2f
+        if (dotRadius < 1f) return
+        val edge = (dotRadius * 0.28f).coerceIn(1.25f, dotRadius * 0.42f)
+        canvas.drawCircle(x, y, dotRadius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tipEdge })
+        canvas.drawCircle(x, y, dotRadius - edge, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tipFill })
+    }
+
+    private fun fitTextSize(text: String, preferred: Float, maxWidth: Float, min: Float): Float {
+        val paint = Paint().apply { textSize = preferred }
+        var size = preferred
+        while (paint.measureText(text) > maxWidth && size > min) {
             size -= 1f
             paint.textSize = size
         }
-        if (paint.measureText(text) > maxWidth) return
-
-        val fm = paint.fontMetrics
-        val y = rect.centerY() - (fm.ascent + fm.descent) / 2f
-        val textW = paint.measureText(text)
-        val padH = size * 0.42f
-        val padV = size * 0.28f
-        val chipRect = RectF(
-            rect.centerX() - textW / 2f - padH,
-            y + fm.ascent - padV,
-            rect.centerX() + textW / 2f + padH,
-            y + fm.descent + padV
-        )
-        val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = chip }
-        val radius = (size * 0.35f).coerceAtLeast(4f)
-        canvas.drawRoundRect(chipRect, radius, radius, chipPaint)
-        canvas.drawText(text, rect.centerX(), y, paint)
+        return size
     }
 
-    private fun inset(rect: RectF, amount: Float): RectF {
-        return RectF(
-            rect.left + amount,
-            rect.top + amount,
-            rect.right - amount,
-            rect.bottom - amount
-        )
+    private fun ringPaint(color: Int, stroke: Float): Paint {
+        return Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+            strokeCap = Paint.Cap.BUTT
+        }
     }
 
-    private fun mix(a: Int, b: Int, t: Float): Int {
-        val ta = t.coerceIn(0f, 1f)
-        return Color.argb(
-            (Color.alpha(a) + (Color.alpha(b) - Color.alpha(a)) * ta).toInt(),
-            (Color.red(a) + (Color.red(b) - Color.red(a)) * ta).toInt(),
-            (Color.green(a) + (Color.green(b) - Color.green(a)) * ta).toInt(),
-            (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * ta).toInt()
-        )
+    private fun ringOval(cx: Float, cy: Float, radius: Float): RectF {
+        return RectF(cx - radius, cy - radius, cx + radius, cy + radius)
     }
 }

@@ -25,7 +25,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.unit.ColorProvider
 import com.brian.grokbar.MainActivity
 import com.brian.grokbar.data.UsageRepository
-import com.brian.grokbar.util.WeekProgress
+import com.brian.grokbar.util.Formatters
 
 class UsageWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -53,8 +53,8 @@ private fun WidgetContent(
 ) {
     val size = LocalSize.current
     val density = context.resources.displayMetrics.density
-    val widthPx = (size.width.value * density * 2f).toInt().coerceIn(280, 1400)
-    val heightPx = (size.height.value * density * 2f).toInt().coerceIn(80, 900)
+    val widthPx = (size.width.value * density * 2f).toInt().coerceIn(160, 1600)
+    val heightPx = (size.height.value * density * 2f).toInt().coerceIn(160, 1600)
     val pxPerDp = widthPx / size.width.value
     val bitmap = GaugeBitmapRenderer.render(snapshot, widthPx, heightPx, pxPerDp)
 
@@ -68,7 +68,7 @@ private fun WidgetContent(
         Image(
             provider = ImageProvider(bitmap),
             contentDescription = "Grok usage ${snapshot.usedPercent.toInt()} percent used, " +
-                "week ${WeekProgress.elapsedPercent(snapshot.resetAtEpochMs).toInt()} percent elapsed",
+                Formatters.timeLeftLabel(snapshot.resetAtEpochMs),
             contentScale = ContentScale.FillBounds,
             modifier = GlanceModifier.fillMaxSize()
         )
