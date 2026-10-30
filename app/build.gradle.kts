@@ -12,8 +12,8 @@ android {
         applicationId = "com.brian.grokbar"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -28,6 +28,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Debug keystore so a sideload release installs over the debug build.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -39,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -63,6 +66,8 @@ dependencies {
     implementation(libs.compose.material3)
 
     debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.junit)
 
     implementation(libs.coil.compose)
     implementation(libs.kotlinx.coroutines.android)

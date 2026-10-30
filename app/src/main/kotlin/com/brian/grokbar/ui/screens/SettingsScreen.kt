@@ -130,6 +130,44 @@ fun SettingsScreen(
                 Spacer(Modifier.height(12.dp))
                 Text(state.message.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            Spacer(Modifier.height(28.dp))
+            Text("Updates", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Version ${state.installedVersion.ifBlank { "1.0" }}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { viewModel.checkForUpdate() },
+                enabled = !state.isCheckingUpdate && !state.isInstallingUpdate,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (state.isCheckingUpdate) "Checking…" else "Check for updates")
+            }
+            if (!state.updateMessage.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(state.updateMessage.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!state.updateApkUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { viewModel.installUpdate() },
+                    enabled = !state.isInstallingUpdate,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (state.isInstallingUpdate) "Downloading…" else "Install update")
+                }
+            } else if (!state.updatePageUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { IntentUtils.openUrl(context, state.updatePageUrl.orEmpty()) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("View release")
+                }
+            }
         }
     }
 }

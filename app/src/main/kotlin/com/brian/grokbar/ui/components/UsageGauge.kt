@@ -17,12 +17,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
@@ -30,13 +36,18 @@ import androidx.compose.ui.unit.sp
 import com.brian.grokbar.data.ProductShare
 import com.brian.grokbar.data.UsageProduct
 import com.brian.grokbar.data.UsageSnapshot
+import com.brian.grokbar.data.sortedForLegend
 import com.brian.grokbar.ui.theme.ElectricBlue
 import com.brian.grokbar.ui.theme.GaugeMuted
 import com.brian.grokbar.ui.theme.GaugeSurface
 import com.brian.grokbar.ui.theme.GaugeTrack
+import com.brian.grokbar.ui.theme.WeekRing
+import com.brian.grokbar.ui.theme.productColor
 import com.brian.grokbar.util.Formatters
-
-private val SegmentOpacities = listOf(1f, 0.70f, 0.45f, 0.32f, 0.22f, 0.15f, 0.10f)
+import com.brian.grokbar.util.WeekProgress
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 @Composable
 fun UsageGaugeCard(
@@ -53,15 +64,20 @@ fun UsageGaugeCard(
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val plan = snapshot.planName?.takeIf { it.isNotBlank() } ?: "Grok"
-        Text(
-            text = if (snapshot.isDemo) "Sample · Weekly $plan limit" else "Weekly $plan limit",
-            style = MaterialTheme.typography.labelLarge,
-            color = GaugeMuted
-        )
-        Spacer(Modifier.height(16.dp))
+        var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(60_000)
+                nowMs = System.currentTimeMillis()
+            }
+        }
+        val weekElapsed = WeekProgress.elapsedPercent(snapshot.resetAtEpochMs, nowMs)
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(220.dp)) {
-            UsageDonut(segments = usedSegments, usedPercent = snapshot.usedPercent)
+            UsageDonut(
+                segments = usedSegments,
+                usedPercent = snapshot.usedPercent,
+                weekElapsed = weekElapsed
+            )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "${Formatters.usedPercentLabel(snapshot.usedPercent)}%",
@@ -84,11 +100,9 @@ fun UsageGaugeCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 row.forEachIndexed { indexInRow, share ->
-                    val colorIndex = usedSegments.indexOfFirst { it.id == share.id }
-                        .takeIf { it >= 0 } ?: (products.indexOf(share))
                     LegendItem(
                         share = share,
-                        color = ElectricBlue.copy(alpha = SegmentOpacities[colorIndex.coerceIn(0, SegmentOpacities.lastIndex)]),
+                        color = productColor(share.id),
                         modifier = Modifier.weight(1f)
                     )
                     if (indexInRow == 0 && row.size == 1) {
@@ -137,53 +151,84 @@ private fun LegendItem(share: ProductShare, color: Color, modifier: Modifier = M
 private fun UsageDonut(
     segments: List<ProductShare>,
     usedPercent: Float,
+    weekElapsed: Float,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier.size(220.dp)) {
-        val stroke = size.minDimension * 0.10f
-        val inset = stroke / 2f
-        val arcSize = Size(size.width - stroke, size.height - stroke)
-        val topLeft = Offset(inset, inset)
-        drawArc(
-            color = GaugeTrack,
-            startAngle = 0f,
-            sweepAngle = 360f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = stroke, cap = StrokeCap.Butt)
-        )
+        val outerStroke = size.minDimension * 0.10f
+        val innerStroke = size.minDimension * 0.066f
+        val gap = size.minDimension * 0.028f
+        val outerInset = outerStroke / 2f
+        val outerSize = Size(size.width - outerStroke, size.height - outerStroke)
+        val outerTopLeft = Offset(outerInset, outerInset)
+        drawRing(GaugeTrack, 0f, 360f, outerTopLeft, outerSize, outerStroke)
         var start = -90f
-        val gap = if (segments.size > 1) 3.2f else 0f
-        segments.forEachIndexed { index, share ->
-            val sweep = 360f * (share.percent / 100f) - gap
+        var endOfColor = start
+        val segmentGap = if (segments.size > 1) 3.2f else 0f
+        segments.forEach { share ->
+            val full = 360f * (share.percent / 100f)
+            val sweep = full - segmentGap
             if (sweep > 0.4f) {
-                drawArc(
-                    color = ElectricBlue.copy(
-                        alpha = SegmentOpacities[index.coerceIn(0, SegmentOpacities.lastIndex)]
-                    ),
-                    startAngle = start,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = stroke, cap = StrokeCap.Butt)
-                )
+                drawRing(productColor(share.id), start, sweep, outerTopLeft, outerSize, outerStroke)
+                endOfColor = start + sweep
             }
-            start += 360f * (share.percent / 100f)
+            start += full
         }
         if (segments.isEmpty() && usedPercent > 0.15f) {
-            drawArc(
-                color = ElectricBlue,
-                startAngle = -90f,
-                sweepAngle = 360f * (usedPercent / 100f),
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Butt)
-            )
+            val sweep = 360f * (usedPercent / 100f)
+            drawRing(ElectricBlue, -90f, sweep, outerTopLeft, outerSize, outerStroke)
+            endOfColor = -90f + sweep
+        }
+
+        val outerRadius = (size.minDimension - outerStroke) / 2f
+        if (endOfColor > -90f + 1f) {
+            drawRingTip(outerRadius, endOfColor, outerStroke)
+        }
+        val innerRadius = outerRadius - outerStroke / 2f - gap - innerStroke / 2f
+        val innerTopLeft = Offset(size.width / 2f - innerRadius, size.height / 2f - innerRadius)
+        val innerSize = Size(innerRadius * 2f, innerRadius * 2f)
+        drawRing(GaugeTrack, 0f, 360f, innerTopLeft, innerSize, innerStroke)
+        val weekSweep = 360f * (weekElapsed / 100f)
+        if (weekSweep > 0.8f) {
+            val drawn = weekSweep.coerceAtMost(359.8f)
+            drawRing(WeekRing, -90f, drawn, innerTopLeft, innerSize, innerStroke)
+            if (weekSweep < 359.5f) {
+                drawRingTip(innerRadius, -90f + drawn, innerStroke)
+            }
         }
     }
+}
+
+private fun DrawScope.drawRing(
+    color: Color,
+    startAngle: Float,
+    sweepAngle: Float,
+    topLeft: Offset,
+    arcSize: Size,
+    stroke: Float
+) {
+    drawArc(
+        color = color,
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = topLeft,
+        size = arcSize,
+        style = Stroke(width = stroke, cap = StrokeCap.Butt)
+    )
+}
+
+private fun DrawScope.drawRingTip(radius: Float, angleDeg: Float, stroke: Float) {
+    val rad = Math.toRadians(angleDeg.toDouble())
+    val center = Offset(size.width / 2f, size.height / 2f)
+    val dot = stroke * 0.33f
+    if (dot < 1f) return
+    val at = Offset(
+        center.x + radius * cos(rad).toFloat(),
+        center.y + radius * sin(rad).toFloat()
+    )
+    drawCircle(color = Color.Black, radius = dot, center = at)
+    drawCircle(color = Color.White, radius = dot * 0.72f, center = at)
 }
 
 @Composable
@@ -199,14 +244,12 @@ private fun SegmentedUsageBar(
         val toDraw = segments.ifEmpty {
             if (usedPercent > 0.15f) listOf(ProductShare(-1, "Used", usedPercent)) else emptyList()
         }
-        toDraw.forEachIndexed { index, share ->
+        toDraw.forEach { share ->
             val width = size.width * (share.percent / 100f)
             val drawWidth = (width - gap).coerceAtLeast(0f)
             if (drawWidth > 1f) {
                 drawRect(
-                    color = ElectricBlue.copy(
-                        alpha = SegmentOpacities[index.coerceIn(0, SegmentOpacities.lastIndex)]
-                    ),
+                    color = productColor(share.id),
                     topLeft = Offset(x, 0f),
                     size = Size(drawWidth, size.height)
                 )
@@ -218,9 +261,14 @@ private fun SegmentedUsageBar(
 
 private fun displayProducts(snapshot: UsageSnapshot): List<ProductShare> {
     val byId = snapshot.products.associateBy { it.id }
-    val known = UsageProduct.gaugeOrder.map { product ->
-        byId[product.id] ?: ProductShare(product.id, product.label, 0f)
+    val known = UsageProduct.legendOrder.map { product ->
+        ProductShare(
+            id = product.id,
+            label = product.label,
+            percent = byId[product.id]?.percent ?: 0f
+        )
     }
-    val extras = snapshot.products.filter { UsageProduct.fromId(it.id) == null }
-    return known + extras
+    val knownIds = UsageProduct.legendOrder.map { it.id }.toSet()
+    val extras = snapshot.products.filter { it.id !in knownIds }
+    return (known + extras).sortedForLegend()
 }

@@ -6,9 +6,11 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import androidx.compose.ui.graphics.toArgb
 import com.brian.grokbar.data.ProductShare
 import com.brian.grokbar.data.UsageProduct
 import com.brian.grokbar.data.UsageSnapshot
+import com.brian.grokbar.ui.theme.productColor
 import com.brian.grokbar.util.Formatters
 import com.brian.grokbar.util.WeekProgress
 import kotlin.math.min
@@ -22,12 +24,6 @@ object GaugeBitmapRenderer {
     private val tipFill = 0xFFFFFFFF.toInt()
     private val tipEdge = 0xFF000000.toInt()
     private val tick = 0xFFF2F2F6.toInt()
-    private val extraColors = intArrayOf(
-        0xFFFFB020.toInt(),
-        0xFFFF7A3D.toInt(),
-        0xFF5AD0E6.toInt(),
-        0xFFE8E050.toInt()
-    )
 
     fun render(
         snapshot: UsageSnapshot,
@@ -144,7 +140,8 @@ object GaugeBitmapRenderer {
         val known = UsageProduct.gaugeOrder.map { product ->
             byId[product.id] ?: ProductShare(product.id, product.label, 0f)
         }
-        val extras = snapshot.products.filter { UsageProduct.fromId(it.id) == null }
+        val gaugeIds = UsageProduct.gaugeOrder.map { it.id }.toSet()
+        val extras = snapshot.products.filter { it.id !in gaugeIds && it.percent > 0f }
         return known + extras
     }
 
@@ -160,19 +157,7 @@ object GaugeBitmapRenderer {
             }
     }
 
-    private fun colorForProduct(id: Int): Int {
-        return when (id) {
-            UsageProduct.BUILD.id -> 0xFF3D7BFF.toInt()
-            UsageProduct.CHAT.id -> 0xFF00E5FF.toInt()
-            UsageProduct.VOICE.id -> 0xFFD06BFF.toInt()
-            UsageProduct.IMAGINE.id -> 0xFFFF5BA3.toInt()
-            UsageProduct.AUTOMATIONS.id -> 0xFF3DFFB0.toInt()
-            0 -> extraColors[0]
-            1 -> extraColors[1]
-            -1 -> 0xFF3D7BFF.toInt()
-            else -> extraColors[kotlin.math.abs(id) % extraColors.size]
-        }
-    }
+    private fun colorForProduct(id: Int): Int = productColor(id).toArgb()
 
     private fun drawTrack(canvas: Canvas, cx: Float, cy: Float, radius: Float, stroke: Float) {
         val edge = ringPaint(trackEdge, stroke + stroke * 0.12f)

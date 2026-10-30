@@ -7,23 +7,29 @@ enum class UsageProduct(
     val id: Int,
     val label: String
 ) {
+    UNSPECIFIED(0, "Unspecified"),
+    API(1, "API"),
     BUILD(2, "Grok Build"),
+    PLUGINS(3, "Grok Plugins"),
     CHAT(4, "Chat"),
-    VOICE(6, "Voice"),
     IMAGINE(5, "Imagine"),
-    AUTOMATIONS(3, "Automations");
+    VOICE(6, "Voice"),
+    APP_BUILDER(7, "App Builder"),
+    TASKS(8, "Tasks"),
+    BOT(9, "Grok Bot"),
+    CURSOR(10, "Cursor"),
+    BUGBOT(11, "Bugbot");
 
     companion object {
-        val gaugeOrder: List<UsageProduct> = listOf(BUILD, CHAT, VOICE, IMAGINE, AUTOMATIONS)
+        /** Products drawn on the usage ring, in ring order. */
+        val gaugeOrder: List<UsageProduct> = listOf(BUILD, CHAT, VOICE, IMAGINE, PLUGINS)
+
+        /** Every billing product, including ones with no reported usage. */
+        val legendOrder: List<UsageProduct> = entries
 
         fun fromId(id: Int): UsageProduct? = entries.find { it.id == id }
 
-        fun labelFor(id: Int): String = when (id) {
-            0 -> "3rd Party"
-            1 -> "API"
-            3 -> "Automations"
-            else -> fromId(id)?.label ?: "Product $id"
-        }
+        fun labelFor(id: Int): String = fromId(id)?.label ?: "Product $id"
     }
 }
 
@@ -32,6 +38,14 @@ data class ProductShare(
     val label: String,
     val percent: Float
 )
+
+/** Highest usage first. Equal usage is alphabetical by label. */
+fun List<ProductShare>.sortedForLegend(): List<ProductShare> {
+    return sortedWith(
+        compareByDescending<ProductShare> { it.percent }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }
+    )
+}
 
 data class UsageSnapshot(
     val usedPercent: Float,
@@ -72,7 +86,7 @@ data class UsageSnapshot(
                 ProductShare(UsageProduct.CHAT.id, UsageProduct.CHAT.label, 9f),
                 ProductShare(UsageProduct.VOICE.id, UsageProduct.VOICE.label, 5f),
                 ProductShare(UsageProduct.IMAGINE.id, UsageProduct.IMAGINE.label, 8f),
-                ProductShare(UsageProduct.AUTOMATIONS.id, UsageProduct.AUTOMATIONS.label, 3f)
+                ProductShare(UsageProduct.PLUGINS.id, UsageProduct.PLUGINS.label, 3f)
             )
             return UsageSnapshot(
                 usedPercent = 47f,
